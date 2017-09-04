@@ -1,0 +1,7 @@
+[login]
+username = ""
+password = ""
+
+[playlist]
+# Path and filename to the generated playlist. ./ is the current directory
+path = "./neterra.m3u8"

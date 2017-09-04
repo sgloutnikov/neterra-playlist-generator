@@ -10,6 +10,9 @@ import (
     "github.com/tidwall/gjson"
     "os"
     "bufio"
+    "bytes"
+    "log"
+    "github.com/spf13/viper"
 )
 
 var jar, _ = cookiejar.New(nil)
@@ -28,10 +31,17 @@ func setPlayLink(playLink string, channel *Channel) {
 type Channels []Channel
 
 func main () {
-    login()
-    channels := getChannels()
-    fmt.Println(channels)
+    viper.SetConfigName("config")
+    viper.AddConfigPath(".")
+    viper.ReadInConfig()
 
+    if !login(viper.GetString("login.username"), viper.GetString("login.password")) {
+        log.Fatal("Could not login. Check credentials.")
+    }
+
+    fmt.Println("Generating playlist in " + viper.GetString("playlist.path"))
+    channels := getChannels()
+    generatePlaylist(viper.GetString("playlist.path"), channels)
 }
 
 func generatePlaylist(path string, channels Channels) {
@@ -40,6 +50,18 @@ func generatePlaylist(path string, channels Channels) {
     writer := bufio.NewWriter(file)
     writer.WriteString("#EXTM3U\n")
 
+    // Write out available channels
+    var buffer bytes.Buffer
+    for _, channel := range channels {
+        buffer.WriteString("#EXTINF:-1, ")
+        buffer.WriteString(channel.Media_name)
+        buffer.WriteString("\n")
+        buffer.WriteString(channel.Play_link)
+        buffer.WriteString("\n")
+
+        writer.WriteString(buffer.String())
+        buffer.Reset()
+    }
 
     writer.Flush()
 }
@@ -68,7 +90,7 @@ func getChannels() Channels {
         response, _ := client.Do(request)
         bodyBytes, _ := ioutil.ReadAll(response.Body)
         playLink := gjson.GetBytes(bodyBytes, "play_link")
-        setPlayLink(playLink.Raw, &channel)
+        setPlayLink(playLink.Str, &channel)
 
         channels = append(channels, channel)
     }
@@ -76,16 +98,15 @@ func getChannels() Channels {
     return channels
 }
 
-func login() bool {
+func login(user, pass string) bool {
     // Init
     request, _ := http.NewRequest("GET", "http://www.neterra.tv/user/login_page", nil)
     client.Do(request)
 
     // Login POST
-    //TODO: Read from Config
     payload := url.Values{}
-    payload.Set("login_username", "")
-    payload.Set("login_password", "")
+    payload.Set("login_username", user)
+    payload.Set("login_password", pass)
     payload.Set("login", "1")
     payload.Set("login_type", "1")
 
